@@ -10,7 +10,9 @@ namespace FriedLightsaber
     {
         private const bool SingleMode = false;
         private bool mouseDown = false;
-        IntPtr currentWindow = IntPtr.Zero;
+        private IntPtr currentWindow = IntPtr.Zero;
+        private Dictionary<IntPtr, List<Rectangle>> drawnShapes = new Dictionary<IntPtr, List<Rectangle>>(); // Store drawn shapes per window handle
+
         public Form1()
         {
             InitializeComponent();
@@ -20,18 +22,19 @@ namespace FriedLightsaber
         {
             if (mouseButtons == MouseButtons.Left)
             {
-                //if (((mouseDown == false) && down) && SingleMode)
-                //{
-                //Point cursorPosition;
-                //GetCursorPos(out cursorPosition);
-                //currentWindow = WindowFromPoint(cursorPosition);
-                //Text = DateTime.Now.ToString();
-                //if (!Compiled.Contains(currentWindow))
-                //{
-                //    TransparencyHelper.SetWindowTransparency(currentWindow);
-                //    Compiled.Add(currentWindow);
-                //}
-                //}
+                // Uncomment and integrate TransparencyHelper logic here if needed
+                // if (((mouseDown == false) && down) && SingleMode)
+                // {
+                //     Point cursorPosition;
+                //     GetCursorPos(out cursorPosition);
+                //     currentWindow = WindowFromPoint(cursorPosition);
+                //     Text = DateTime.Now.ToString();
+                //     if (!Compiled.Contains(currentWindow))
+                //     {
+                //         TransparencyHelper.SetWindowTransparency(currentWindow);
+                //         Compiled.Add(currentWindow);
+                //     }
+                // }
                 mouseDown = down;
             }
         }
@@ -44,9 +47,6 @@ namespace FriedLightsaber
 
         [DllImport("user32.dll")]
         private static extern bool ScreenToClient(IntPtr hWnd, ref Point lpPoint);
-
-
-        List<IntPtr> Compiled = new List<IntPtr>();
 
         public void MouseMoved(object sender, MouseEventArgs e)
         {
@@ -75,6 +75,37 @@ namespace FriedLightsaber
                     using (SolidBrush brush = new SolidBrush(Color.Fuchsia))
                     {
                         g.FillEllipse(brush, circleBounds);
+                        AddShapeToDictionary(windowHandle, circleBounds); // Store the drawn shape
+                    }
+                }
+            }
+        }
+
+        private void AddShapeToDictionary(IntPtr windowHandle, Rectangle shape)
+        {
+            if (!drawnShapes.ContainsKey(windowHandle))
+            {
+                drawnShapes[windowHandle] = new List<Rectangle>();
+            }
+            drawnShapes[windowHandle].Add(shape);
+        }
+
+        private void RedrawShapes()
+        {
+            foreach (var kvp in drawnShapes)
+            {
+                IntPtr windowHandle = kvp.Key;
+                List<Rectangle> shapes = kvp.Value;
+
+                using (Graphics g = Graphics.FromHwnd(windowHandle))
+                {
+                    foreach (Rectangle shape in shapes)
+                    {
+                        // Redraw each shape on the window
+                        using (SolidBrush brush = new SolidBrush(Color.Fuchsia))
+                        {
+                            g.FillEllipse(brush, shape);
+                        }
                     }
                 }
             }
@@ -87,8 +118,20 @@ namespace FriedLightsaber
                                               // hang on events
             actHook.OnMouseActivity += new MouseEventHandler(MouseMoved);
             actHook.OnMouseClickActivity += new UserActivityHook.MouseClickEventHandler(MouseClicked);
+
+            // Start a timer to periodically redraw shapes
+            Timer redrawTimer = new Timer();
+            redrawTimer.Interval = 100; // Adjust the interval as needed (in milliseconds)
+            redrawTimer.Tick += RedrawTimer_Tick;
+            redrawTimer.Start();
+        }
+
+        private void RedrawTimer_Tick(object sender, EventArgs e)
+        {
+            RedrawShapes();
         }
     }
+
     public class TransparencyHelper
     {
         // Constants
